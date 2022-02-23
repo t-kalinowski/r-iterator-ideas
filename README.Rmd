@@ -114,8 +114,9 @@ emerge:
 
 -   Should R provide an `iterate()` method for functions? This would
     allow users to pass functions directly to `for`. In this scenario,
-    user defined functions would be responsible for eventually signaling
-    an `iterator_exhausted` condition (or running forever). For example:
+    user defined functions would be responsible for indicating when an
+    iterator function is exhausted, either by signaling a condition or
+    returning a sentinal (or running forever). For example:
 
 ```{r}
 iterate.function <- function(x, state = NULL) {
@@ -136,7 +137,7 @@ iterator_exhausted_condition <- function(call = sys.call()) {
 Then users could write code like this:
 
 ```{r}
-SquaresSequenceClosure <- function(from = 1, to = 10) {
+SquaresSequenceIterator <- function(from = 1, to = 10) {
   force(from); force(to)
   function() {
     if(from > to)
@@ -146,6 +147,6 @@ SquaresSequenceClosure <- function(from = 1, to = 10) {
   }
 }
 
-for (x in SquaresSequenceClosure(1, 10))
+for (x in SquaresSequenceIterator(1, 10))
   print(x)
 ```
