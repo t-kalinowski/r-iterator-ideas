@@ -29,7 +29,7 @@ iterate.default <- function(x, state = NULL) {
     state <- 1L
   if(state > length(x)) # end of iteration
     return(list(NULL, NULL)) 
-  list(x[[state]], state + 1L)
+  list(value = x[[state]], state = state + 1L)
 }
 
 `for` <- function(var, iterable, body) {
@@ -37,18 +37,15 @@ iterate.default <- function(x, state = NULL) {
   body <- substitute(body)
   env <- parent.frame()
   
-  state <- NULL
+  step <- list(value = NULL, state = NULL)
   repeat {
-    c(value, state) %<-% iterate(iterable, state)
-    if(is.null(state)) return(invisible())
-    assign(x = var, value = value, envir = env)
+    step <- iterate(iterable, step$state)
+    names(step) <- c("value", "state")
+    if(is.null(step$state)) return(invisible())
+    assign(x = var, value = step$value, envir = env)
     eval(body, env)
   }
 }
-
-envir::import_from(zeallot, `%<-%`) 
-# tuple unpacking assignment operator
-# just an implementation detail, not part of the proposal
 ```
 
 With this approach, the users might write code like this:
@@ -64,8 +61,9 @@ iterate.SquaresSequence <- function(x, state = NULL) {
   if(is.null(state))
     state <- 1L
   if (state > x$to)
-    return(list(NULL, NULL))
-  list((x$from - 1L + state) ^ 2, state + 1L)
+    return(list(value = NULL, state = NULL))
+  list(value = (x$from - 1L + state) ^ 2, 
+       state = state + 1L)
 }
 
 for (x in SquaresSequence(1, 10))
