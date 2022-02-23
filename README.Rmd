@@ -101,10 +101,23 @@ for(x in reticulate::r_to_py(1:3))
   print(x)
 ```
 
-We could also provide a default `iterate()` method for functions. This
-would allow users to pass functions directly to `for`. User defined
-functions would be responsible for eventually signaling an
-`iterator_exhausted` condition (or running forever).
+The proposal above is very narrow and conservative. To fully bake the
+idea however, there are some additional tricky question that naturally
+emerge:
+
+-   Should `as.list()` (and derivatives, like `lapply()`) invoke
+    `iterate()`? If not, should R provide a convenient way to
+    materialize an iterable's elements into a list, maybe with a
+    convenient way to limit infinitely iterable objects?
+
+-   Should `length()` return the number of times an object can be
+    `iterate()`d over? If yes, what should `length()` return for objects
+    where the iteration length is unknown?
+
+-   Should R provide an `iterate()` method for functions? This would
+    allow users to pass functions directly to `for`. In this scenario,
+    user defined functions would be responsible for eventually signaling
+    an `iterator_exhausted` condition (or running forever). For example:
 
 ```{r}
 iterate.function <- function(x, state = NULL) {
