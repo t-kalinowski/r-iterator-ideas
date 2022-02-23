@@ -30,17 +30,17 @@ IteratorExhaustedSentinal <- new.env(parent = emptyenv())
   body <- substitute(body)
   env <- parent.frame()
   
-  iterable <- as.iterable(iterable)
-  if(!is.function(iterable))
-    return(eval.parent(as.call(c(
-      quote(base::`for`), as.name(var), iterable, body
-    ))))
+  if (!is.vector(iterable) || is.object(iterable)) 
+    iterable <- as.iterable(iterable)
+  
+  if (!is.function(iterable))
+    return(eval.parent(as.call(list(
+      base::`for`, as.name(var), iterable, body))))
   
   repeat {
     value <- iterable() 
     if(identical(value, IteratorExhaustedSentinal))
       return(invisible())
-    
     assign(x = var, value = value, envir = env)
     eval(body, env)
   }
