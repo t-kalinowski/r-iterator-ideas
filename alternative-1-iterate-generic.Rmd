@@ -48,7 +48,9 @@ iterate.default <- function(x, state = NULL) {
   
   step <- list(value = NULL, state = NULL)
   repeat {
-    step <- iterate(iterable, step$state)
+    step <- iterate(iterable, step$state) 
+    # in a real implementation, we would cache the `iterate()` method and avoid
+    # dispatching on each loop iteration
     if(is.null(step)) return(invisible())
     names(step) <- c("value", "state")
     assign(x = var, value = step$value, envir = env)

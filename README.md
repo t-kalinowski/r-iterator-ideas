@@ -39,23 +39,67 @@ that naturally emerge:
 For the most part, the proposals here punt on these hard questions, and
 stick to suggesting only the most narrow and conservative change.
 
-## Recommendations
+## Comparison
 
-Alternative 2 (`[[`) is not recommended. It seems to have high risk for
-unforeseen or subtle unintended consequences due to the many other uses
-of `[[`.
+### Alternative 1 (`iterate(x, state)`):
 
-Alternative 3 (`as.iterator()` returning closures) would feel natural to
-R users who are accustomed to managing state in closures. However, an
-ergonomic implementation would also include the introduction of an
-additional symbol or a magic phrase to indicate when an iterator is
-exhausted (e.g., an `iterator_exhausted_sentinal` or
-`iterator_exhausted_condition()`, or a faux typed simple condition with
-a magic message like `stop("IteratorExhausted")`). By comparison,
-alternative 1 would only introduce 1 new symbol: `iterate()`.
+Pros:
 
-Additionally, `iterate()` seems like it would be easier to teach than
-`<<-` to new R users.
+-   Only introduces 1 new symbol.
+-   Very simple implementation; low risk for unintended or subtle
+    consequences.
+-   `iterate()` seems easier to teach than `<<-` to new R users.
+-   Encourages authors to be intentional about state management.
+-   Because it does not introduce an explicit `iterator` class, it
+    sidesteps the thorny questions of what `length()` and `as.list()`
+    should do for iterators.
+
+Cons:
+
+-   The iterable is prevented from being garbage collected during the
+    duration of iteration.
+
+### Alternative 2 (`[[`):
+
+Pros:
+
+-   No new symbols would need to be introduced (in it's most narrow
+    implementation).
+-   Many existing objects would gain the ability to be passed to `for`
+    with no code changes.
+
+Cons:
+
+-   It seems to have high risk for unforeseen or subtle unintended
+    consequences due to the many other uses of `[[`.
+-   The concepts of subsetting and an 'out of bounds' condition don't
+    naturally map to stateful iterators and iterator exhaustion--feels
+    like a forced API.
+
+### Alternative 3 (`as.iterator()` returning closures):
+
+Pros:
+
+-   It would feel familiar to R users who are accustomed to managing
+    state in closures.
+
+Cons:
+
+-   A robust and ergonomic implementation would also include the
+    introduction of an additional symbol or a magic phrase to indicate
+    when an iterator is exhausted (e.g., an
+    `iterator_exhausted_sentinal` or `iterator_exhausted_condition()`,
+    or a faux typed simple condition with a magic message like
+    `stop("IteratorExhausted")`).
+
+-   Introduces a footgun by inviting code authors to capture
+    environments which may contain large objects.
+
+## Recomendations
+
+-   Alternative 1: Recommended and preferred.
+-   Alternative 2: Not recommended
+-   Alternative 3: Acceptable, but not preferred.
 
 It is my (Tomasz's) opinion that alternative 1 (`iterate()`) strikes the
 best balance between:
