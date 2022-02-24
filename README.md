@@ -39,13 +39,23 @@ that naturally emerge:
 For the most part, the proposals here punt on these hard questions, and
 stick to suggesting only the most narrow and conservative change.
 
-Alternative 2 seems to have high risk for unforeseen or subtle
-unintended consequences due to the many other uses of `[[`.
+## Recommendations
 
-Alternative 3 would feel natural to R users who are accustomed to
-managing state in closures. However, compared to alternative 1,
-`iterate()` seems easier to reason about, and would likely be easier to
-teach to would-be authors than `<<-`.
+Alternative 2 (`[[`) is not recommended. It seems to have high risk for
+unforeseen or subtle unintended consequences due to the many other uses
+of `[[`.
+
+Alternative 3 (`as.iterator()` returning closures) would feel natural to
+R users who are accustomed to managing state in closures. However, an
+ergonomic implementation would also include the introduction of an
+additional symbol or a magic phrase to indicate when an iterator is
+exhausted (e.g., an `iterator_exhausted_sentinal` or
+`iterator_exhausted_condition()`, or a faux typed simple condition with
+a magic message like `stop("IteratorExhausted")`). By comparison,
+alternative 1 would only introduce 1 new symbol: `iterate()`.
+
+Additionally, `iterate()` seems like it would be easier to teach than
+`<<-` to new R users.
 
 It is my (Tomasz's) opinion that alternative 1 (`iterate()`) strikes the
 best balance between:
