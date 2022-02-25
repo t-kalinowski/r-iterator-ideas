@@ -25,7 +25,7 @@ mechanism might look like:
 
 -   `for` repeatedly calls `iterate(x, state)` until `NULL` is returned.
 
-(This implementation is very similar to the Julia approach)
+(This implementation is very similar to the Julia approach).
 
 The equivalent of the following could be added to base R (with core
 parts implemented in C):
@@ -34,11 +34,16 @@ parts implemented in C):
 iterate <- function(x, state = NULL) UseMethod("iterate")
 
 iterate.default <- function(x, state = NULL) {
+  # This default method tries to faithfully match the current behavior of `for`.
+  # The intent is that if no `iterate()` method for an object is explicitly
+  # defined, then there is no change in behavior.
+
   if(is.null(state)) # start of iteration
     state <- 1L
-  if(state > length(x)) # end of iteration
-    return(NULL) 
-  list(value = x[[state]], state = state + 1L)
+  if(state > length(unclass(x))) # end of iteration
+    return(NULL)
+  list(value = .subset2(x, state), 
+       state = state + 1L)
 }
 
 `for` <- function(var, iterable, body) {
@@ -48,9 +53,9 @@ iterate.default <- function(x, state = NULL) {
   
   step <- list(value = NULL, state = NULL)
   repeat {
-    step <- iterate(iterable, step$state) 
-    # in a real implementation, we would cache the `iterate()` method and avoid
-    # dispatching on each loop iteration
+    step <- iterate(iterable, step$state)
+    # In a real implementation, we would likely cache the method and try to
+    # avoid having to S3 dispatch each iteration.
     if(is.null(step)) return(invisible())
     names(step) <- c("value", "state")
     assign(x = var, value = step$value, envir = env)
@@ -90,7 +95,7 @@ iterate.python.builtin.object <- function(x, state = NULL) {
 
   sentinal <- environment()
   value <- reticulate::iter_next(state, completed = sentinal)
-  if(identical(sentinal, value))
+  if(identical(value, sentinal))
     NULL
   else
     list(value, state)
@@ -101,12 +106,13 @@ for(x in reticulate::r_to_py(1:3))
 ```
 
 The above is a narrow but flexible change (Only one new symbol would be
-introduced, `base::iterate()`).
+introduced, `base::iterate()`). Since `iterate()` is a new generic, it
+would allows for changes in behavior to be made with intention
+individually for each class type.
 
-One minor advantage of this approach over the others explored is that,
-because the `state` object is exposed, is will be relatively easy for
-users to rewind and replay iterators (for objects where `iterate` is a
-pure function).
+## Optional extensions
+
+### `iterate.function()`
 
 An optional extension might be for the `base` namespace to also provide
 a `iterate()` method for functions. This would allow users to pass
@@ -148,3 +154,137 @@ SquaresSequenceIterator <- function(from = 1, to = 10) {
 for (x in SquaresSequenceIterator(1, 10))
   print(x)
 ```
+
+### `as.iterator()`
+
+It's possible to expose an `as.iterator()` user interface, for users
+wanting to manually iterate over an object
+
+```{r}
+as.iterator <- function(x, exhausted = NULL) {
+  force(x); state <- NULL
+  function() {
+    step <- iterate(x, state)
+    if(is.null(step))
+      return(exhausted)
+    state <<- step$state
+    step$value
+  }
+}
+
+it <- as.iterator(SquaresSequence())
+it(); it(); it()
+```
+
+### `iterate.environment()`
+
+This would allow users to pass environemtns to `for`. However, it opens
+the thorny question of what is best to do if the environment is modified
+in place while being iterated over. This example implementation allows
+for symbols to be removed or modified while iteration is ongoing, but
+new symbols added will not be included as part of iteration.
+
+```{r}
+iterate.environment <- function(x, state = NULL) {
+  if(is.null(state)) # start of iteration
+    state <- list(names = names(x), idx = 1L)
+
+  repeat {
+    if (state$idx > length(state$names)) # end of iteration
+      return(NULL)
+    
+    name <- state$names[[state$idx]]
+    state$idx <- state$idx + 1L
+    
+    if(!exists(name, envir = x, inherits = FALSE)) # removed from env
+      next
+    
+    return(list(x[[name]], state))
+  }
+}
+```
+
+```{r}
+e <- list2env(list(a = 1, b = 2, c = 3), parent = emptyenv())
+for (el in e)
+  print(el)
+```
+
+### `iterate.POSIXt()`
+
+Currently, `for` strips the class of `POSIXct` and returns a bare
+numeric, or iterates over the underlying list of `POSIXlt`. Neither of
+these seem like desirable or useful behaviors, and it might be good for
+R to also provide an `iterate.POSIXt` method that yields elements of the
+supplied `POSIX` type.
+
+```{r}
+# current behavior, not desirable
+(ct <- .POSIXct(c(1, 2, 3)))
+(lt <- as.POSIXlt(ct))
+
+for(x in ct)
+  print(x)
+
+for(x in lt)
+  print(x)
+```
+
+```{r}
+.iterate_via_length_and_extract <- function(x, state = NULL) {
+  if(is.null(state))
+    state <- 1L
+  if(state > length(x))
+    NULL
+  else
+    list(x[state], state + 1L)
+}
+
+iterate.POSIXt <- .iterate_via_length_and_extract
+
+for(x in ct)
+  print(x)
+
+for(x in lt)
+  print(x)
+```
+
+### `iterate.factor()`
+
+`for` currently coerces `factor` objects to a character vector. This
+seems not terrible (at least it's not the underlying integer), though it
+might be preferable to yield a length-1 factor with a levels attribute.
+
+```{r}
+base::`for`(x, factor(letters[1:3]), 
+  print(x))
+
+iterate.factor <- .iterate_via_length_and_extract
+
+for(x in factor(letters[1:3]))
+  print(x)
+```
+
+### `iterate.package_version()`
+
+Again, attributes are stripped, and this seems undesirable.
+
+```{r}
+for(x in package_version(c("1.1.1", "2.2.2"))) 
+  str(x)
+
+iterate.numeric_version <- .iterate_via_length_and_extract
+
+for(x in package_version(c("1.1.1", "2.2.2"))) 
+  str(x)
+```
+
+### `iterate.array`
+
+It is likely that users will be tempted to define their own methods for
+base classes like `array` (e.g., if they want row-wise iteration), and
+it might be good to get ahead of that by disallowing it. For example,
+adding a check to `R CMD check` ensuring that no CRAN packages can
+define an `iterate` method for objects of type `array`, `data.frame`,
+`numeric`, and so on.
+
