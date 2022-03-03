@@ -69,12 +69,18 @@ This repository contains three alternatives for what an iteration
 protocol in R might look like. Potential interfaces sketched out here
 would allow users to pass any object to `for` that:
 
-1.  has a generic method with signature `iterate(x, state)`
+-   [Alternative
+    1](https://github.com/t-kalinowski/r-iterator-ideas/blob/main/alternative-1-iterate-generic.md):
+    has a generic method with signature `iterate(x, state)`
 
-2.  has a `[[` method, or coercible to something that has a `[[` method
+-   [Alternative
+    2](https://github.com/t-kalinowski/r-iterator-ideas/blob/main/alternative-2-subset2-generic.md):
+    has a `[[` method, or coercible to something that has a `[[` method
     with an `as.iterable()` generic.
 
-3.  is a function, or coercible to a function with an `as.iterator()`
+-   [Alternative
+    3](https://github.com/t-kalinowski/r-iterator-ideas/blob/main/alternative-3-iterable-closure.md):
+    is a function, or coercible to a function with an `as.iterator()`
     generic.
 
 In general, all the approaches achieve the same outcome of allowing code
