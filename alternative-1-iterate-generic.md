@@ -54,13 +54,13 @@ iterate.default <- function(x, state = NULL) {
 }
 
 for (x in 1:5) {
-  print(x)
+  str(x)
 }
-#> [1] 1
-#> [1] 2
-#> [1] 3
-#> [1] 4
-#> [1] 5
+#>  int 1
+#>  int 2
+#>  int 3
+#>  int 4
+#>  int 5
 ```
 
 ### Calculation on demand
@@ -123,8 +123,9 @@ iterate.SampleSequence <- function(x, state = NULL) {
 for (x in SampleSequence(2)) {
   print(x)
 }
-#> [1] 0.199133
-#> [1] 1.97984
+#> [1] 0.7546431
+#> [1] 0.1370668
+#> [1] 1.215064
 ```
 
 ## Extensions
@@ -146,7 +147,6 @@ iterate.POSIXt <- function(x, state = NULL) {
     state = state + 1L
   )
 }
-iterate.factor <- iterate.POSIXt
 
 dt <- .POSIXct(c(1, 2))
 for (x in dt) {
@@ -160,12 +160,6 @@ for (x in as.POSIXlt(dt)) {
 }
 #>  POSIXlt[1:1], format: "1969-12-31 18:00:01"
 #>  POSIXlt[1:1], format: "1969-12-31 18:00:02"
-
-for (x in factor(c("x", "y"))) {
-  str(x)
-}
-#>  Factor w/ 2 levels "x","y": 1
-#>  Factor w/ 2 levels "x","y": 2
 ```
 
 ### `iterate.environment()`
@@ -203,30 +197,6 @@ for (el in e)
 #> [1] 1
 ```
 
-### `as.iterator()`
-
-It’s possible to expose an `as.iterator()` user interface, for users
-wanting to manually iterate over an object
-
-``` r
-as.iterator <- function(x, exhausted = NULL) {
-  force(x); state <- NULL
-  function() {
-    step <- iterate(x, state)
-    if(is.null(step))
-      return(exhausted)
-    state <<- step$state
-    step$value
-  }
-}
-
-it <- as.iterator(SquaresSequence())
-it(); it(); it()
-#> [1] 1
-#> [1] 4
-#> [1] 9
-```
-
 ### Iterator functions
 
 A `function` method for `iterate` would make it possible for users to
@@ -256,10 +226,12 @@ Then users could write code like this:
 SquaresSequenceIterator <- function(from = 1, to = 10) {
   force(from); force(to)
   function() {
-    if(from > to)
-      return(IteratorExhaustedSentinal)
-    on.exit(from <<- from + 1L)
-    from ^ 2
+    if(from > to) {
+      IteratorExhaustedSentinal
+    } else {
+      on.exit(from <<- from + 1L)
+      from ^ 2
+    }
   }
 }
 
@@ -275,6 +247,28 @@ for (x in SquaresSequenceIterator(1, 10))
 #> [1] 64
 #> [1] 81
 #> [1] 100
+```
+
+It would also be possible to expose the opposite transformation,
+converting an object into an iterator:
+
+``` r
+as.iterator <- function(x, exhausted = NULL) {
+  force(x); state <- NULL
+  function() {
+    step <- iterate(x, state)
+    if(is.null(step))
+      return(exhausted)
+    state <<- step$state
+    step$value
+  }
+}
+
+it <- as.iterator(SquaresSequence())
+it(); it(); it()
+#> [1] 1
+#> [1] 4
+#> [1] 9
 ```
 
 ### Reticulate support

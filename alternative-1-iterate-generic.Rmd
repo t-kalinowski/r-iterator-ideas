@@ -64,7 +64,7 @@ iterate.default <- function(x, state = NULL) {
 }
 
 for (x in 1:5) {
-  print(x)
+  str(x)
 }
 ```
 
@@ -139,7 +139,6 @@ iterate.POSIXt <- function(x, state = NULL) {
     state = state + 1L
   )
 }
-iterate.factor <- iterate.POSIXt
 
 dt <- .POSIXct(c(1, 2))
 for (x in dt) {
@@ -147,10 +146,6 @@ for (x in dt) {
 }
 
 for (x in as.POSIXlt(dt)) {
-  str(x)
-}
-
-for (x in factor(c("x", "y"))) {
   str(x)
 }
 ```
@@ -187,27 +182,6 @@ for (el in e)
   print(el)
 ```
 
-### `as.iterator()`
-
-It's possible to expose an `as.iterator()` user interface, for users
-wanting to manually iterate over an object
-
-```{r}
-as.iterator <- function(x, exhausted = NULL) {
-  force(x); state <- NULL
-  function() {
-    step <- iterate(x, state)
-    if(is.null(step))
-      return(exhausted)
-    state <<- step$state
-    step$value
-  }
-}
-
-it <- as.iterator(SquaresSequence())
-it(); it(); it()
-```
-
 ### Iterator functions
 
 A `function` method for `iterate` would make it possible for users to
@@ -237,15 +211,36 @@ Then users could write code like this:
 SquaresSequenceIterator <- function(from = 1, to = 10) {
   force(from); force(to)
   function() {
-    if(from > to)
-      return(IteratorExhaustedSentinal)
-    on.exit(from <<- from + 1L)
-    from ^ 2
+    if(from > to) {
+      IteratorExhaustedSentinal
+    } else {
+      on.exit(from <<- from + 1L)
+      from ^ 2
+    }
   }
 }
 
 for (x in SquaresSequenceIterator(1, 10))
   print(x)
+```
+
+It would also be possible to expose the opposite transformation,
+converting an object into an iterator:
+
+```{r}
+as.iterator <- function(x, exhausted = NULL) {
+  force(x); state <- NULL
+  function() {
+    step <- iterate(x, state)
+    if(is.null(step))
+      return(exhausted)
+    state <<- step$state
+    step$value
+  }
+}
+
+it <- as.iterator(SquaresSequence())
+it(); it(); it()
 ```
 
 ### Reticulate support
@@ -268,3 +263,4 @@ iterate.python.builtin.object <- function(x, state = NULL) {
 for(x in reticulate::r_to_py(1:3))
   print(x)
 ```
+

@@ -68,6 +68,15 @@ The `for` repeatedly increments i and calls `x[[i]]`:
     i <- i + 1L
   }
 }
+
+for (x in 1:5) {
+  str(x)
+}
+#>  int 1
+#>  int 2
+#>  int 3
+#>  int 4
+#>  int 5
 ```
 
 ### Calculation on demand
@@ -136,8 +145,8 @@ as.iterable.SampleSequence <- function(x) {
 for (x in SampleSequence(2)) {
   print(x)
 }
-#> [1] 0.8318375
-#> [1] 0.4729569
+#> [1] 0.04779182
+#> [1] 1.852538
 ```
 
 ## Extensions

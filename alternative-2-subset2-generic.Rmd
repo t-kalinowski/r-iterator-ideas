@@ -77,6 +77,10 @@ The `for` repeatedly increments i and calls `x[[i]]`:
     i <- i + 1L
   }
 }
+
+for (x in 1:5) {
+  str(x)
+}
 ```
 
 ### Calculation on demand
@@ -203,4 +207,3 @@ as.iterable.python.builtin.object <- function(x) {
 for(x in reticulate::r_to_py(1:3))
   print(x)
 ```
-
