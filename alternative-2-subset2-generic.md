@@ -3,25 +3,46 @@
 
 # R Iterator Ideas (`[[` + signal, optionally with `as.iterable()`)
 
-R doesn’t currently have a mechanism for users to customize what happens
-when objects are passed to `for`. Below is a proposal for what such a
-mechanism might look like:
+This approach extends the behavior of `[[` to signal a custom condition
+when done:
 
--   User implements `[[`, and optionally `as.iterable()`.
+``` r
+stop_out_of_bounds <- function(call = sys.call()) {
+  cnd <- structure(
+    list(message = "subscript out of bounds", call = call),
+    class = c("out_of_bounds", "error", "condition")
+  )
+  stop(cnd)
+}
+```
 
--   User is expected to call `stop(out_of_bounds_condition())` in `[[`
-    when the iterable is exhausted.
+Which we use from `[[`:
 
--   `for` repeatedly calls `x[[i]]` with incrementing `i` until the
-    condition is encountered.
+``` r
+# Quick and dirty implementation; real implementation would need to happen in C
+`[[` <- function(x, i, ...) {
+  if (is.vector(x) && is.integer(i) && length(i) == 1 && i > length(x)) {
+    stop_out_of_bounds()
+  } else {
+    base::`[[`(x, i, ...)
+  }
+}
+x <- 1:3
+x[[5L]]
+#> Error in stop_out_of_bounds(): subscript out of bounds
+```
 
-The equivalent of the following could be in base R (with core parts
-implemented in C):
+We additionally need a protocol to turn an object into an iterator, so,
+if needed, `[[`, can behave differently outside of `for`:
 
 ``` r
 as.iterable <- function(x) UseMethod("as.iterable")
-as.iterable.default <- identity
+as.iterable.default <- function(x) x
+```
 
+The `for` repeatedly increments i and calls `x[[i]]`:
+
+``` r
 `for` <- function(var, iterable, body) {
   var <- as.character(substitute(var))
   body <- substitute(body)
@@ -33,33 +54,97 @@ as.iterable.default <- identity
   i <- 1L
   exhausted <- FALSE
   repeat {
-    tryCatch({
-      value <- iterable[[i]]
-    },
-    out_of_bounds = function(cond) {
-      exhausted <<- TRUE
-    },
-    error = function(e) {
-      # Not everything raises a typed signal yet, so we need to 
-      # accept simple errors too
-      if (e$message == "subscript out of bounds")
+    tryCatch(
+      value <- iterable[[i]],
+      out_of_bounds = function(cond) {
         exhausted <<- TRUE
-      else
-        stop(e)
-    })
+      }
+    )
     if (exhausted) return(invisible())
+    
     assign(x = var, value = value, envir = env)
-    i <- i + 1L
     eval(body, env)
+    
+    i <- i + 1L
+  }
+}
+```
+
+### Calculation on demand
+
+``` r
+SquaresSequence <- function(from = 1, to = 10) {
+  structure(
+    list(from = from, to = to),
+    class = "SquaresSequence"
+  )
+}
+
+`[[.SquaresSequence` <- function(x, i) {
+  val <- x$from - 1L + i
+  if (val > x$to) {
+    stop_out_of_bounds()
+  } else {
+    val ^ 2  
   }
 }
 
-out_of_bounds_condition <- function(call = sys.call()) {
-  structure(class = c("out_of_bounds", "error", "condition"),
-            list(message = "subscript out of bounds", call = call))
+for (x in SquaresSequence(5, 10))
+  print(x)
+#> [1] 25
+#> [1] 36
+#> [1] 49
+#> [1] 64
+#> [1] 81
+#> [1] 100
+```
+
+## Sequence of unknown length
+
+Handling a sequence of unknown length is a bit tougher because we need
+to create an intermediate mutable object that tracks state.
+
+``` r
+SampleSequence <- function(max) {
+  structure(
+    list(max = max),
+    class = "SampleSequence"
+  )
 }
 
-# support for functions
+as.iterable.SampleSequence <- function(x) {
+  state <- new.env(parent = emptyenv())
+  state$total <- 0
+  
+  structure(
+    list(max = x$max, state = state),
+    class = "SampleSequenceIterator"
+  )
+}
+
+`[[.SampleSequenceIterator` <- function(x, i) {
+  val <- abs(rnorm(1))
+  x$state$total <- x$state$total + val
+  
+  if (x$state$total > x$max) {
+    stop_out_of_bounds()
+  } else {
+    val
+  }
+}
+
+for (x in SampleSequence(2)) {
+  print(x)
+}
+#> [1] 0.8318375
+#> [1] 0.4729569
+```
+
+## Extensions
+
+### Iterators
+
+``` r
 as.iterable.function <- function(x) {
   # Not strictly necessary, just a guardrail here so we wouldn't have to part
   # with our old friend: "object of type 'closure' is not subsettable"
@@ -79,51 +164,19 @@ as.iterable.function <- function(x) {
 }
 ```
 
-With this approach, the users might write code like this:
-
 ``` r
-SquaresSequence <- function(from = 1, to = 10) {
-  out <- list(from = from, to = to)
-  class(out) <- "SquaresSequence"
-  out
-}
-
-`[[.SquaresSequence` <- function(x, i) {
-  if (i > x$to)
-    stop(out_of_bounds_condition())
-  (x$from - 1L + i) ^ 2
-}
-
-for (x in SquaresSequence(1, 10))
-  print(x)
-#> [1] 1
-#> [1] 4
-#> [1] 9
-#> [1] 16
-#> [1] 25
-#> [1] 36
-#> [1] 49
-#> [1] 64
-#> [1] 81
-#> [1] 100
-
-
 SquaresSequenceClosure <- function(from = 1, to = 10) {
   force(from); force(to)
   function() {
     from <<- from + 1L
     if(from > to)
-      stop(out_of_bounds_condition())
+      stop_out_of_bounds()
     from ^ 2
   }
 }
 
-for (x in SquaresSequenceClosure(1, 10))
+for (x in SquaresSequenceClosure(5, 10))
   print(x)
-#> [1] 4
-#> [1] 9
-#> [1] 16
-#> [1] 25
 #> [1] 36
 #> [1] 49
 #> [1] 64
@@ -131,20 +184,23 @@ for (x in SquaresSequenceClosure(1, 10))
 #> [1] 100
 ```
 
+### Reticulate
+
 Reticulate support might look like this:
 
 ``` r
 as.iterable.python.builtin.object <- function(x) {
-  iterator <- reticulate::as_iterator(x)
-  class(iterator) <- unique(c("reticulate_iterable", class(iterator)))
-  iterator
+  structure(
+    list(it = reticulate::as_iterator(x)),
+    class = "reticulate_iterable"
+  )
 }
 
 `[[.reticulate_iterable` <- function(x, i) {
-  sentinal <- environment()
-  val <- reticulate::iter_next(x, completed = sentinal)
-  if(identical(val, sentinal))
-    stop(out_of_bounds_condition())
+  sentinel <- environment()
+  val <- reticulate::iter_next(x$it, completed = sentinel)
+  if(identical(val, sentinel))
+    stop_out_of_bounds()
   val
 }
 
