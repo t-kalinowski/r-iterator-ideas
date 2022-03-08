@@ -169,15 +169,15 @@ as.iterator.POSIXt <- function(x) {
   }
 }
 
-dt <- .POSIXct(c(1, 2))
+dt <- .POSIXct(c(1, 2), tz = "UTC")
 for (x in dt) {
   str(x)
 }
-#>  POSIXct[1:1], format: "1969-12-31 18:00:01"
-#>  POSIXct[1:1], format: "1969-12-31 18:00:02"
+#>  POSIXct[1:1], format: "1970-01-01 00:00:01"
+#>  POSIXct[1:1], format: "1970-01-01 00:00:02"
 for (x in as.POSIXlt(dt)) {
   str(x)
 }
-#>  POSIXlt[1:1], format: "1969-12-31 18:00:01"
-#>  POSIXlt[1:1], format: "1969-12-31 18:00:02"
+#>  POSIXlt[1:1], format: "1970-01-01 00:00:01"
+#>  POSIXlt[1:1], format: "1970-01-01 00:00:02"
 ```

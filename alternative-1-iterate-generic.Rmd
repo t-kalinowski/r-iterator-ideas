@@ -141,7 +141,7 @@ iterate.POSIXt <- function(x, state = NULL) {
   )
 }
 
-dt <- .POSIXct(c(1, 2))
+dt <- .POSIXct(c(1, 2), tz = "UTC")
 for (x in dt) {
   str(x)
 }
