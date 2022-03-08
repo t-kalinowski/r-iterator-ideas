@@ -1,3 +1,13 @@
+---
+output: github_document
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
 
 # R Iterator Proposal
 
@@ -8,13 +18,13 @@ are passed to `for`. This desire comes up frequently in a variety of
 contexts:
 
 -   If a dataset is too large to fit in memory, and needs to be
-    processed in batches, it’d be nice to write:
+    processed in batches, it'd be nice to write:
 
     ``` r
     for (batch in lazy_loading_dataset()) ...
     ```
 
--   If reading events from a stream (potentially forever), it’d be nice
+-   If reading events from a stream (potentially forever), it'd be nice
     to write:
 
     ``` r
@@ -31,27 +41,14 @@ Additionally, it would be appealing to improve the somewhat
 idiosyncratic handling of key S3 classes provided by base. A
 particularly problematic example is the handling of POSIXt objects:
 
-``` r
+```{r}
 dt <- .POSIXct(c(1, 2))
 for (x in dt) {
   str(x)
 }
-#>  num 1
-#>  num 2
 for (x in as.POSIXlt(dt)) {
   str(x)
 }
-#>  num [1:2] 1 2
-#>  int [1:2] 0 0
-#>  int [1:2] 18 18
-#>  int [1:2] 31 31
-#>  int [1:2] 11 11
-#>  int [1:2] 69 69
-#>  int [1:2] 3 3
-#>  int [1:2] 364 364
-#>  int [1:2] 0 0
-#>  chr [1:2] "CST" "CST"
-#>  int [1:2] -21600 -21600
 ```
 
 But similar problems exist elsewhere, for example, with Dates and
@@ -78,7 +75,7 @@ In most circumstances, R users can read simple examples in Python API
 documentation and translate them almost verbatim to R using reticulate,
 with little knowledge of Python required. However, when users want to
 port a Python example using `for` to R, they need to be aware of
-precisely what Python’s `for` does and manually construct and manage the
+precisely what Python's `for` does and manually construct and manage the
 underlying iterator. An extensible `for` in R would reduce the teaching
 burden for all R packages that wrap objects that use the Python iterator
 protocol (like
@@ -94,7 +91,7 @@ iteration protocol:
 -   [Alternative
     1](https://github.com/t-kalinowski/r-iterator-ideas/blob/main/alternative-1-iterate-generic.md):
     introduces a new iterator generic with an explicit state object,
-    inspired by Julia’s approach.
+    inspired by Julia's approach.
 
 -   [Alternative
     2](https://github.com/t-kalinowski/r-iterator-ideas/blob/main/alternative-2-subset2-generic.md):
@@ -140,9 +137,9 @@ Pros:
 
 Cons:
 
--   The iterable can’t be garbage collected during the duration of
+-   The iterable can't be garbage collected during the duration of
     iteration.
--   Doesn’t provide the nicest API for users who want to manually
+-   Doesn't provide the nicest API for users who want to manually
     iterate over an object.
 -   Some additional work is needed to avoid the performance penalty of
     performing method dispatch each iteration.
@@ -158,7 +155,7 @@ Cons:
 
 -   Potential for unforeseen or unintended consequences from changing
     behaviour of `[[`.
--   The concepts of subsetting and an ‘out of bounds’ condition don’t
+-   The concepts of subsetting and an 'out of bounds' condition don't
     naturally map to iterators and iterator exhaustion, especially when
     iterating over sequences that are unordered, or when the iterable is
     stateful.

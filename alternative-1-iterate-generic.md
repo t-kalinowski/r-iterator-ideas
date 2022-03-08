@@ -1,7 +1,7 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# R Iterator Proposal: `iterate()` generic.
+# `iterate()` generic with explicit state
 
 Inspired by
 [Julia](https://docs.julialang.org/en/v1/manual/interfaces/#man-interface-iteration),
@@ -63,6 +63,8 @@ for (x in 1:5) {
 #>  int 5
 ```
 
+## Examples
+
 ### Calculation on demand
 
 ``` r
@@ -97,7 +99,7 @@ for (x in SquaresSequence(5, 10))
 #> [1] 196
 ```
 
-## Sequence of unknown length
+### Sequence of unknown length
 
 ``` r
 SampleSequence <- function(max) {
@@ -123,14 +125,12 @@ iterate.SampleSequence <- function(x, state = NULL) {
 for (x in SampleSequence(2)) {
   print(x)
 }
-#> [1] 0.7546431
-#> [1] 0.1370668
-#> [1] 1.215064
+#> [1] 1.400044
+#> [1] 0.2553171
+#> [1] 2.437264
 ```
 
-## Extensions
-
-### Support for S3 classes
+### POSIXt
 
 A simple modification to the default iterator (from `.subset2()` to
 `[[`) makes it possible to selectively change the behavior of key S3
@@ -154,7 +154,6 @@ for (x in dt) {
 }
 #>  POSIXct[1:1], format: "1969-12-31 18:00:01"
 #>  POSIXct[1:1], format: "1969-12-31 18:00:02"
-
 for (x in as.POSIXlt(dt)) {
   str(x)
 }
@@ -197,7 +196,26 @@ for (el in e)
 #> [1] 1
 ```
 
-### Iterator functions
+### Reticulate
+
+``` r
+iterate.python.builtin.object <- function(x, state = NULL) {
+  if(is.null(state))
+    state <- reticulate::as_iterator(x)
+
+  sentinal <- environment()
+  value <- reticulate::iter_next(state, completed = sentinal)
+  if(identical(value, sentinal))
+    NULL
+  else
+    list(value = value, state = state)
+}
+
+for(x in reticulate::r_to_py(1:3))
+  print(x)
+```
+
+## Iterator functions
 
 A `function` method for `iterate` would make it possible for users to
 define iterators as stateful functions:
@@ -269,25 +287,4 @@ it(); it(); it()
 #> [1] 1
 #> [1] 4
 #> [1] 9
-```
-
-### Reticulate support
-
-Reticulate support might look like:
-
-``` r
-iterate.python.builtin.object <- function(x, state = NULL) {
-  if(is.null(state))
-    state <- reticulate::as_iterator(x)
-
-  sentinal <- environment()
-  value <- reticulate::iter_next(state, completed = sentinal)
-  if(identical(value, sentinal))
-    NULL
-  else
-    list(value = value, state = state)
-}
-
-for(x in reticulate::r_to_py(1:3))
-  print(x)
 ```

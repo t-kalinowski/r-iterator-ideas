@@ -1,7 +1,7 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# R Iterator Ideas (`[[` + signal, optionally with `as.iterable()`)
+# Signal exhaustion in `[[`; optional with `as.iterable()`
 
 This approach extends the behavior of `[[` to signal a custom condition
 when done:
@@ -79,6 +79,8 @@ for (x in 1:5) {
 #>  int 5
 ```
 
+## Examples
+
 ### Calculation on demand
 
 ``` r
@@ -108,7 +110,7 @@ for (x in SquaresSequence(5, 10))
 #> [1] 100
 ```
 
-## Sequence of unknown length
+### Sequence of unknown length
 
 Handling a sequence of unknown length is a bit tougher because we need
 to create an intermediate mutable object that tracks state.
@@ -145,13 +147,36 @@ as.iterable.SampleSequence <- function(x) {
 for (x in SampleSequence(2)) {
   print(x)
 }
-#> [1] 0.04779182
-#> [1] 1.852538
+#> [1] 1.400044
+#> [1] 0.2553171
 ```
 
-## Extensions
+### Reticulate
 
-### Iterators
+``` r
+as.iterable.python.builtin.object <- function(x) {
+  structure(
+    list(it = reticulate::as_iterator(x)),
+    class = "reticulate_iterable"
+  )
+}
+
+`[[.reticulate_iterable` <- function(x, i) {
+  sentinel <- environment()
+  val <- reticulate::iter_next(x$it, completed = sentinel)
+  if(identical(val, sentinel))
+    stop_out_of_bounds()
+  val
+}
+
+for(x in reticulate::r_to_py(1:3))
+  print(x)
+#> 1
+#> 2
+#> 3
+```
+
+## Iterator functions
 
 ``` r
 as.iterable.function <- function(x) {
@@ -191,31 +216,4 @@ for (x in SquaresSequenceClosure(5, 10))
 #> [1] 64
 #> [1] 81
 #> [1] 100
-```
-
-### Reticulate
-
-Reticulate support might look like this:
-
-``` r
-as.iterable.python.builtin.object <- function(x) {
-  structure(
-    list(it = reticulate::as_iterator(x)),
-    class = "reticulate_iterable"
-  )
-}
-
-`[[.reticulate_iterable` <- function(x, i) {
-  sentinel <- environment()
-  val <- reticulate::iter_next(x$it, completed = sentinel)
-  if(identical(val, sentinel))
-    stop_out_of_bounds()
-  val
-}
-
-for(x in reticulate::r_to_py(1:3))
-  print(x)
-#> 1
-#> 2
-#> 3
 ```

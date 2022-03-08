@@ -1,92 +1,104 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# R Iterator Proposal
+# Stateful iterator functions
 
-R doesn’t currently have a mechanism for users to customize what happens
-when objects are passed to `for`. Below is a proposal for what such a
-mechanism might look like:
+This approach is centered around the idea of a stateful function that
+you call repeatedly to get the next value. This is similar to Python’s
+generators (where you repeatedly call `nextElem(it)`), but in a
+functional programming language it feels more natural to return a
+function that you call repeatedly.
 
--   `for` gains the ability to accept a function, which it repeatedly
-    calls until a sentinal is returned.
-
--   A new `as.iterator()` generic; methods are expected to return a
-    function.
-
--   User can implement an `as.iterator()` method for their object, which
-    is invoked by `for` before it begins iterating.
-
-The equivalent of the following could be added to base R (with core
-parts implemented in C):
+The implementation begins with a new `as.iterator()` generic:
 
 ``` r
 as.iterator <- function(x) UseMethod("as.iterator")
-as.iterator.function <- identity
+```
+
+We then provide a default method that mimics the existing behavior of
+`for`:
+
+``` r
 as.iterator.default <- function(x) {
-  # This default method tries to faithfully match the current behavior of `for`.
-  # The intent is that if no `as.iterator()` method for an object is explicitly
-  # defined, then there is no change in behavior.
   i <- 1L
   function() {
-    if (i > length(unclass(x)))
-      return(IteratorExhaustedSentinal)
-    on.exit(i <<- i + 1L)
-    .subset2(x, i)
+    if (i > length(unclass(x))) {
+      IteratorExhausted
+    } else {
+      on.exit(i <<- i + 1L)
+      .subset2(x, i)
+    }
   }
 }
 
-IteratorExhaustedSentinal <- new.env(parent = emptyenv())
+IteratorExhausted <- new.env(parent = emptyenv())
+```
 
+(Like approach 2, this could instead signal a condition. However, a
+sentinel object is a little easier to work with and avoids the (small)
+overhead of setting up a condition handler. Unlike approach two, which
+overloads an existing function, there’s no need for backward
+compatiblity forcing us to use a signal here.)
+
+And a method so that users can easily create new iterators with a
+function:
+
+``` r
+as.iterator.function <- identity
+```
+
+Then `for` creates an iterator and repeatedly calls it until it’s
+exhausted:
+
+``` r
 `for` <- function(var, iterable, body) {
   var <- as.character(substitute(var))
   body <- substitute(body)
   env <- parent.frame()
   
-  # same guard as in `lapply()`
-  if (!is.vector(iterable) || is.object(iterable)) 
-    iterable <- as.iterator(iterable)
-  
-  if (is.function(iterable)) {
+  iterable <- as.iterator(iterable)
+  repeat {
+    value <- iterable()
+    if (identical(value, IteratorExhausted))
+      return(invisible())
     
-    repeat {
-      value <- iterable()
-      if (identical(value, IteratorExhaustedSentinal))
-        return(invisible())
-      assign(x = var, value = value, envir = env)
-      eval(body, env)
-    }
-    
-  } else # not a function, dispatch to the current `for`
-    eval.parent(as.call(list(base::`for`, as.name(var), iterable, body)))
-  
-}
-```
-
-With this approach, the users might write code like this:
-
-``` r
-SquaresSequence <- function(from = 1, to = 10) {
-  out <- list(from = from, to = to)
-  class(out) <- "SquaresSequence"
-  out
-}
-
-as.iterator.SquaresSequence <- function(x) {
-  index <- x$from
-  function() {
-    if(index > x$to)
-      return(IteratorExhaustedSentinal)
-    on.exit(index <<- index + 1)
-    (x$from - 1L + index) ^ 2
+    assign(x = var, value = value, envir = env)
+    eval(body, env)
   }
 }
 
-for (x in SquaresSequence(1, 10))
+for (x in 1:5) {
+  str(x)
+}
+#>  int 1
+#>  int 2
+#>  int 3
+#>  int 4
+#>  int 5
+```
+
+## Examples
+
+### Calculation on demand
+
+Unlike the other approaches, there’s no need to create an S3 class. We
+just need a function factory:
+
+``` r
+SquaresSequence <- function(from = 1, to = 10) {
+  force(from); force(to)
+  function() {
+    if(from > to) {
+      IteratorExhausted
+    } else {
+      on.exit(from <<- from + 1L)
+      from ^ 2
+    }
+  }
+}
+
+for (x in SquaresSequence(5, 10))
   print(x)
-#> [1] 1
-#> [1] 4
-#> [1] 9
-#> [1] 16
 #> [1] 25
 #> [1] 36
 #> [1] 49
@@ -95,13 +107,40 @@ for (x in SquaresSequence(1, 10))
 #> [1] 100
 ```
 
-Reticulate support might look like:
+### Sequence of unknown length
+
+``` r
+SampleSequence <- function(max) {
+  force(max)
+  sum <- 0
+  
+  function() {
+    if (sum > max) {
+      IteratorExhausted
+    } else {
+      val <- abs(rnorm(1))
+      sum <<- sum + val
+      val
+    }
+  }
+}
+
+for (x in SampleSequence(2)) {
+  print(x)
+}
+#> [1] 1.400044
+#> [1] 0.2553171
+#> [1] 2.437264
+```
+
+### Reticulate
 
 ``` r
 as.iterator.python.builtin.object <- function(x) {
   iterator <- reticulate::as_iterator(x)
-  function()
-    reticulate::iter_next(iterator, completed = IteratorExhaustedSentinal)
+  function() {
+    reticulate::iter_next(iterator, completed = IteratorExhausted)
+  }
 }
 
 for(x in reticulate::r_to_py(1:3))
@@ -111,99 +150,34 @@ for(x in reticulate::r_to_py(1:3))
 #> 3
 ```
 
-Then users could write also write code like this, where they don’t
-define any generic methods and just define a function that could be
-passed directly to `for`:
+### POSIXt
+
+We can give POSIXt (and other S3 classes) more reasonable behavior by
+selectively overriding the default method to use `length(x)` instead of
+`length(unclass(x))` and `[[` instead of `.subset2()`.
 
 ``` r
-SquaresSequenceClosure <- function(from = 1, to = 10) {
-  force(from); force(to)
+as.iterator.POSIXt <- function(x) {
+  i <- 1L
   function() {
-    if(from > to)
-      return(IteratorExhaustedSentinal)
-    on.exit(from <<- from + 1L)
-    from ^ 2
+    if (i > length(x)) {
+      IteratorExhausted
+    } else {
+      on.exit(i <<- i + 1L)
+      x[[i]]
+    }
   }
 }
 
-for (x in SquaresSequenceClosure(1, 10))
-  print(x)
-#> [1] 1
-#> [1] 4
-#> [1] 9
-#> [1] 16
-#> [1] 25
-#> [1] 36
-#> [1] 49
-#> [1] 64
-#> [1] 81
-#> [1] 100
-```
-
-### Optional extensions
-
-#### as.iterator.POSIXt
-
-``` r
-# current behavior, not desirable
-(ct <- .POSIXct(c(1, 2, 3)))
-#> [1] "1969-12-31 19:00:01 EST" "1969-12-31 19:00:02 EST"
-#> [3] "1969-12-31 19:00:03 EST"
-(lt <- as.POSIXlt(ct))
-#> [1] "1969-12-31 19:00:01 EST" "1969-12-31 19:00:02 EST"
-#> [3] "1969-12-31 19:00:03 EST"
-
-for(x in ct)
-  print(x)
-#> [1] 1
-#> [1] 2
-#> [1] 3
-
-for(x in lt)
-  print(x)
-#> [1] 1 2 3
-#> [1] 0 0 0
-#> [1] 19 19 19
-#> [1] 31 31 31
-#> [1] 11 11 11
-#> [1] 69 69 69
-#> [1] 3 3 3
-#> [1] 364 364 364
-#> [1] 0 0 0
-#> [1] "EST" "EST" "EST"
-#> [1] -18000 -18000 -18000
-```
-
-``` r
-.as.iterator_via_length_and_extract <- function(x) {
-  i <- 1
-  function() {
-    if(i > length(x))
-      return(IteratorExhaustedSentinal)
-    on.exit(i <<- i + 1)
-    x[i]
-  }
+dt <- .POSIXct(c(1, 2))
+for (x in dt) {
+  str(x)
 }
-
-as.iterator.POSIXt <- .as.iterator_via_length_and_extract
-
-# current behavior, not desirable
-(ct <- .POSIXct(c(1, 2, 3)))
-#> [1] "1969-12-31 19:00:01 EST" "1969-12-31 19:00:02 EST"
-#> [3] "1969-12-31 19:00:03 EST"
-(lt <- as.POSIXlt(ct))
-#> [1] "1969-12-31 19:00:01 EST" "1969-12-31 19:00:02 EST"
-#> [3] "1969-12-31 19:00:03 EST"
-
-for(x in ct)
-  print(x)
-#> [1] "1969-12-31 19:00:01 EST"
-#> [1] "1969-12-31 19:00:02 EST"
-#> [1] "1969-12-31 19:00:03 EST"
-
-for(x in lt)
-  print(x)
-#> [1] "1969-12-31 19:00:01 EST"
-#> [1] "1969-12-31 19:00:02 EST"
-#> [1] "1969-12-31 19:00:03 EST"
+#>  POSIXct[1:1], format: "1969-12-31 18:00:01"
+#>  POSIXct[1:1], format: "1969-12-31 18:00:02"
+for (x in as.POSIXlt(dt)) {
+  str(x)
+}
+#>  POSIXlt[1:1], format: "1969-12-31 18:00:01"
+#>  POSIXlt[1:1], format: "1969-12-31 18:00:02"
 ```
