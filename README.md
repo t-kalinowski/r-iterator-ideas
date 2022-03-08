@@ -87,8 +87,8 @@ iteration protocol:
 
 -   [Alternative
     3](https://github.com/t-kalinowski/r-iterator-ideas/blob/main/alternative-3-iterable-closure.md):
-    is a function, or coercible to a function with an `as.iterator()`
-    generic.
+    proposes a stateful function called repeatedly until it signals
+    exhaustion.
 
 All the approaches achieve the same outcome of allowing developers to
 define S3 classes with custom `for` behavior; anything enabled by one of
