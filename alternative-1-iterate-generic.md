@@ -125,9 +125,9 @@ iterate.SampleSequence <- function(x, state = NULL) {
 for (x in SampleSequence(2)) {
   print(x)
 }
-#> [1] 0.1393599
-#> [1] 1.096165
-#> [1] 1.316222
+#> [1] 1.400044
+#> [1] 0.2553171
+#> [1] 2.437264
 ```
 
 ### POSIXt
@@ -160,27 +160,6 @@ for (x in as.POSIXlt(dt)) {
 #>  POSIXlt[1:1], format: "1969-12-31 18:00:01"
 #>  POSIXlt[1:1], format: "1969-12-31 18:00:02"
 ```
-
-### Reticulate
-
-``` r
-iterate.python.builtin.object <- function(x, state = NULL) {
-  if(is.null(state))
-    state <- reticulate::as_iterator(x)
-
-  sentinal <- environment()
-  value <- reticulate::iter_next(state, completed = sentinal)
-  if(identical(value, sentinal))
-    NULL
-  else
-    list(value = value, state = state)
-}
-
-for(x in reticulate::r_to_py(1:3))
-  print(x)
-```
-
-## Extensions
 
 ### `iterate.environment()`
 
@@ -217,7 +196,26 @@ for (el in e)
 #> [1] 1
 ```
 
-### Iterator functions
+### Reticulate
+
+``` r
+iterate.python.builtin.object <- function(x, state = NULL) {
+  if(is.null(state))
+    state <- reticulate::as_iterator(x)
+
+  sentinal <- environment()
+  value <- reticulate::iter_next(state, completed = sentinal)
+  if(identical(value, sentinal))
+    NULL
+  else
+    list(value = value, state = state)
+}
+
+for(x in reticulate::r_to_py(1:3))
+  print(x)
+```
+
+## Iterator functions
 
 A `function` method for `iterate` would make it possible for users to
 define iterators as stateful functions:

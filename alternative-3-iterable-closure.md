@@ -128,10 +128,9 @@ SampleSequence <- function(max) {
 for (x in SampleSequence(2)) {
   print(x)
 }
-#> [1] 1.089329
-#> [1] 0.1425434
-#> [1] 0.3581407
-#> [1] 1.795679
+#> [1] 1.400044
+#> [1] 0.2553171
+#> [1] 2.437264
 ```
 
 ### Reticulate

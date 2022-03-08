@@ -147,8 +147,8 @@ as.iterable.SampleSequence <- function(x) {
 for (x in SampleSequence(2)) {
   print(x)
 }
-#> [1] 0.7192544
-#> [1] 1.25617
+#> [1] 1.400044
+#> [1] 0.2553171
 ```
 
 ### Reticulate
