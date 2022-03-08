@@ -1,77 +1,84 @@
-<!-- README.md is generated from README.Rmd. Please edit that file -->
-
 # R Iterator Proposal
 
 ## Motivation
 
-R doesn’t currently have a mechanism for users to customize what happens
+R currently lacks way to a mechanism for users to customize what happens
 when objects are passed to `for`. This desire comes up frequently in a
-variety of contexts.
+variety of contexts:
 
-For example, when a dataset is too large to fit in memory, and must be
-operated on it batches, it is desirable to able to write:
+-   If a dataset is too large to fit in memory, and needs to be
+    processed in batches, it'd be nice to write:
 
-``` r
-for (batch in lazy_loading_dataset()) ...
-```
+    ``` r
+    for (batch in lazy_loading_dataset()) ...
+    ```
 
-Or, when sequence elements are arriving at unknown times, potentially
-forever, it would be desirable to be able to write:
+-   If reading events from a stream (potentially forever), it'd be nice
+    to write:
 
-``` r
-for (x in socket_pool()) ...
-```
+    ``` r
+    for (x in socket_pool()) ...
+    ```
 
 In particular, there is a desire for `for` to iterate over sequences of:
 
--   lazily generated elements
--   unknown or infinite length
--   unknown order
+-   Lazily generated elements.
+-   Unknown length.
+-   Infinite length.
 
-In the reticulate package there is another strong motivator: the `for`
-iteration protocol in Python is heavily used. For example, the Python
-documentation for `tensorflow.data.Dataset` objects frequently shows the
-`Dataset` object being passed directly to `for`, in, for example, a
-training loop.
+Giving R package authors the ability to define custom iterables would
+reduce the teaching burden, because `for` is intuitively easier to grasp
+for new users than some variation of `as_iterator()` and `iter_next()`,
+and maybe even easier than `lapply()`.
 
-In most circumstances, R users can read simple examples in Python API
-documentation and translate them almost verbatim to R using reticulate,
-with little knowledge of Python required. However, when users want to
-port a Python example using `for` to R, they must now be aware of
-everything that Python's `for` is doing and are responsible for manually
-constructing the iterator and managing it. An extensible `for` in R
-would reduce the teaching burden for all R packages that wrap objects
-that use the Python iterator protocol (like {tfdatasets}).
-
-In general, giving R package authors the ability to define custom
-iterables would reduce the teaching burden, because `for` is intuitively
-easier to grasp for new users than some variation of `as_iterator()` and
-`iter_next()`, and maybe even easier than `lapply()`.
-
-Finally, the current behavior of `for` is somewhat idiosyncratic and
-suboptimal for a small handful of object types. For example iterating
-with `for` over:
+Additionally, when considering extensions to `for`, it would be
+appealing to improve the somewhat idiosyncratic and suboptimal behaviour
+with a small handful of S3 classes. For example iterating with `for`
+over:
 
 -   `POSIXct` strips attributes and yields the bare underlying numeric.
 -   `POSIXlt` strips attributes and iterates over the underlying list.
 -   `factor` coerces to character and iterates over a character vector.
--   `numeric_version` strips attributes, yields length 3 integer
+-   `numeric_version` strips attributes, yielding length 3 integer
     vectors.
--   `environment` throws an error
+-   `environment` throws an error.
 
-Having a generic iteration protocol in R would provide a straightforward
-mechanism to introduce intentional and narrow changes to the behavior of
-`for` with these and other object types.
+This document explores ways in which we might extend `for` to handle new
+types of sequences, while also providing a mechanism to introduce
+intentional and narrow changes to the behavior of `for` with existing S3
+classes.
+
+### Reticulate
+
+<!-- HW: I moved this to a separate section because I'm not sure how motivating this will be to R-Core folks -->
+
+In the [reticulate](https://rstudio.github.io/reticulate/) package,
+which makes it easy to use Python code from R, there is another strong
+motivator. Many important Python classes make heavy use of the `for`
+iteration protocol. For example, the Python documentation for
+`tensorflow.data.Dataset` objects frequently shows the `Dataset` object
+being passed directly to `for`, in, for example, a training loop.
+
+In most circumstances, R users can read simple examples in Python API
+documentation and translate them almost verbatim to R using reticulate,
+with little knowledge of Python required. However, when users want to
+port a Python example using `for` to R, they need to be aware of
+precisely what Python's `for` does and manually construct and manage the
+underlying iterator. An extensible `for` in R would reduce the teaching
+burden for all R packages that wrap objects that use the Python iterator
+protocol (like {tfdatasets}).
 
 ## Alternatives
 
-This repository contains three alternatives for what an iteration
-protocol in R might look like. Potential interfaces sketched out here
-would allow users to pass any object to `for` that:
+This repository implements three possible approaches to a general
+iteration protocol:
+
+<!-- HW: I think it would be good to give these names, rather than numbers -->
 
 -   [Alternative
     1](https://github.com/t-kalinowski/r-iterator-ideas/blob/main/alternative-1-iterate-generic.md):
-    has a generic method with signature `iterate(x, state)`
+    introduces a new iterator generic with an explicit state object,
+    inspired by Julia's approach.
 
 -   [Alternative
     2](https://github.com/t-kalinowski/r-iterator-ideas/blob/main/alternative-2-subset2-generic.md):
@@ -83,14 +90,12 @@ would allow users to pass any object to `for` that:
     is a function, or coercible to a function with an `as.iterator()`
     generic.
 
-In general, all the approaches achieve the same outcome of allowing code
-authors to define custom objects that can be passed to `for`; anything
-enabled by one of the alternatives is enabled by all of them. The
-primary differences are in the interface presented to users.
+All the approaches achieve the same outcome of allowing developers to
+define S3 classes with custom `for` behaviour; anything enabled by one
+of the alternatives is enabled by all of them. The primary differences
+is in the interface presented to developers.
 
-Each alternative aims to be narrow and conservative. To fully bake the
-idea of a language-native iterator protocol however, there are some
-additional tricky question that naturally emerge:
+### Open issuses
 
 -   Should `as.list()` (and derivatives, like `lapply()`) invoke the
     iterator protocol? If not, should R provide a convenient way to
@@ -102,16 +107,13 @@ additional tricky question that naturally emerge:
     objects where the iteration length is unknown? (e.g.,
     `length(tfdataset)` can return `NA` or `Inf`)
 
-For the most part, the proposals here punt on these hard questions, and
-stick to suggesting only the most narrow and conservative change.
-
 ## Comparison
 
 ### Alternative 1, `iterate(x, state)`
 
 Pros:
 
--   Only introduces 1 new symbol.
+-   Only introduces 1 new function.
 -   Very simple implementation; low risk for unintended or subtle
     consequences.
 -   `iterate()` seems easier to teach than `<<-` to new R authors.
@@ -144,14 +146,16 @@ Pros:
 
 Cons:
 
--   It seems to have high risk for unforeseen or subtle unintended
-    consequences due to the many other uses of `[[`.
+-   Potential for unforeseen or subtle unintended consequences due to
+    the many other uses of `[[`.
 -   The concepts of subsetting and an 'out of bounds' condition don't
     naturally map to iterators and iterator exhaustion, especially when
-    iteratring over sequences that are unordered, or when the iterable
-    is stateful.
+    iterating over sequences that are unordered, or when the iterable is
+    stateful.
+-   Would need to introduce new `out_of_bounds` condition type and
+    retrofit it to existing base `[[` implementations.
 -   Existing conventions around `[[` would require that users
-    communicate iterator exhaustion via a condition, not a sentinal. The
+    communicate iterator exhaustion via a condition, not a sentinel. The
     need for `for` to setup a signal handler on each loop iteration
     might introduce a performance penalty.
 
