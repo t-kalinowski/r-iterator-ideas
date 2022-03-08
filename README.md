@@ -2,9 +2,9 @@
 
 ## Motivation
 
-R currently lacks way to a mechanism for users to customize what happens
-when objects are passed to `for`. This desire comes up frequently in a
-variety of contexts:
+R currently lacks a way for users to customize what happens when objects
+are passed to `for`. This desire comes up frequently in a variety of
+contexts:
 
 -   If a dataset is too large to fit in memory, and needs to be
     processed in batches, it'd be nice to write:
@@ -91,11 +91,11 @@ iteration protocol:
     generic.
 
 All the approaches achieve the same outcome of allowing developers to
-define S3 classes with custom `for` behaviour; anything enabled by one
-of the alternatives is enabled by all of them. The primary differences
-is in the interface presented to developers.
+define S3 classes with custom `for` behavior; anything enabled by one of
+the alternatives is enabled by all of them. The primary differences is
+in the interface presented to developers.
 
-### Open issuses
+### Open issues
 
 -   Should `as.list()` (and derivatives, like `lapply()`) invoke the
     iterator protocol? If not, should R provide a convenient way to
