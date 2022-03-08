@@ -56,9 +56,9 @@ exhausted:
   body <- substitute(body)
   env <- parent.frame()
   
-  iterable <- as.iterator(iterable)
+  iterator <- as.iterator(iterable)
   repeat {
-    value <- iterable()
+    value <- iterator()
     if (identical(value, IteratorExhausted))
       return(invisible())
     
