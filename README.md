@@ -36,28 +36,23 @@ dt <- .POSIXct(c(1, 2))
 for (x in dt) {
   str(x)
 }
-```
-
-    ##  num 1
-    ##  num 2
-
-``` r
+#>  num 1
+#>  num 2
 for (x in as.POSIXlt(dt)) {
   str(x)
 }
+#>  num [1:2] 1 2
+#>  int [1:2] 0 0
+#>  int [1:2] 18 18
+#>  int [1:2] 31 31
+#>  int [1:2] 11 11
+#>  int [1:2] 69 69
+#>  int [1:2] 3 3
+#>  int [1:2] 364 364
+#>  int [1:2] 0 0
+#>  chr [1:2] "CST" "CST"
+#>  int [1:2] -21600 -21600
 ```
-
-    ##  num [1:2] 1 2
-    ##  int [1:2] 0 0
-    ##  int [1:2] 18 18
-    ##  int [1:2] 31 31
-    ##  int [1:2] 11 11
-    ##  int [1:2] 69 69
-    ##  int [1:2] 3 3
-    ##  int [1:2] 364 364
-    ##  int [1:2] 0 0
-    ##  chr [1:2] "CST" "CST"
-    ##  int [1:2] -21600 -21600
 
 But similar problems exist elsewhere, for example, with Dates and
 factors.
